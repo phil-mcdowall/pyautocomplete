@@ -1,3 +1,6 @@
+from functools import _lru_cache_wrapper
+from collections import namedtuple
+
 class _TrieNode:
     def __init__(self):
         self.children = {}
@@ -5,16 +8,27 @@ class _TrieNode:
 
 
 class Autocomplete:
-    def __init__(self, words=None):
+
+    def __init__(self, words=None,max_cache=0):
         """
         Instantiate autocomplete with optional
-        list of words.
+        list of words. Search results can be cached for
+        better performance if search patterns are temporally correlated.
+        Cache may become very large if search patterns are short.
+        max_cache:0 - no cache
+        max_cache:n - cache last n results
+        max_cache:None - cache unlimited number of results
         :param words: list
+        :param max_cache: int
         """
         self.tree = _TrieNode()
         if words:
             for word in words:
                 self.insert(word)
+
+        # wrap find in cache wrapper
+        self.find = _lru_cache_wrapper(self._find,max_cache,False, namedtuple('CacheStats',
+                                                                              'hits,misses,currsize,maxsize'))
 
     def insert(self, word):
         """
@@ -54,7 +68,7 @@ class Autocomplete:
             for char, child in root_node.children.items():
                 if child.terminal:
                     results.append(accumulator+char)
-                self._find_children(child, accumulator + char, results)
+                results = self._find_children(child, accumulator + char, results)
             return results
 
     def _find_prefix_node(self, pattern):
@@ -66,7 +80,7 @@ class Autocomplete:
                 return None
         return node
 
-    def find(self, pattern):
+    def _find(self, pattern):
         """
         Find a word in that matches the given prefix pattern.
         If no match is found returns an empty list
@@ -81,3 +95,4 @@ class Autocomplete:
             return result
         else:
             return []
+
